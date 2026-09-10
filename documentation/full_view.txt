@@ -1,0 +1,11 @@
+AscThem currently has a mobile app that scans QR/barcodes, authenticates users, verifies products, tracks scan history, handles location/geocoding, and communicates with a NestJS backend using Postgrsql. The next phase is to add an agentic medication-intelligence layer without redesigning the existing platform.
+
+Start by adding a Medication Intelligence Orchestrator behind the existing API Gateway. The existing Product Verification service should produce a normalized medication context (NDC/GTIN, drug name, ingredient, strength, dosage form, manufacturer, quantity, etc.), which the orchestrator passes to three specialized agents:
+
+1. Pricing & Savings Agent → pricing, coupons and reviews using authorized external providers such as GoodRx/SingleCare/WellRx; build a provider abstraction/mock provider first while commercial API access is being explored.
+2. Drug-Drug Interaction Agent → compare the scanned medication against the user's medication list using a structured interaction source plus FDA labeling evidence.
+3. Pharmacovigilance Agent → retrieve FDA post-market safety information such as safety communications, recalls, adverse-event signals and labeling changes. FDA provides resources including NDC, Drugs@FDA, Orange Book and FDALabel for product/label information.
+
+All agents should return structured, source-backed results to a common Evidence/Validation layer, after which an LLM summarizes the information in simple language. The LLM should explain evidence, not independently make medical safety decisions.
+
+Existing Product Verification → Normalized Medication Object → Agent Orchestrator → Evidence Model → Pharmacovigilance Agent (first) → DDI Agent → Pricing Agent → Unified mobile response.
