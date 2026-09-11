@@ -7,7 +7,7 @@ import logging
 import re
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from uuid import NAMESPACE_URL, uuid5
 
 from langsmith.wrappers import wrap_openai
@@ -213,27 +213,17 @@ class OpenAIWebPricingProvider:
         return clean_response
 
 
-_PRICING_INSTRUCTIONS = """You are a medication-price extraction agent.
-Use web search for every request. Medication strength is an exact constraint, never
-a preference: when strength is supplied, return an offer only when the browsed page
-explicitly shows that exact strength. Never substitute a different or nearest
-strength. Copy the strength printed beside the price into matched_strength; do not
-copy it from the request. If the page does not expose the requested strength, return
-no offers. Use dosage form, manufacturer, and quantity as optional search hints;
-do not discard an otherwise source-backed medication and strength match when a
-source does not expose one of them. Postal code is a mandatory input and search
-constraint: search for prices in that location and never knowingly use a different
-location. Providers do not always echo the selected postal code in accessible page
-text or final URLs, so absence of echoed location text is not a reason to discard an
-otherwise source-backed result.
-Report only a price explicitly visible in a browsed source. Never estimate, calculate, combine, or infer a price. 
-Omit ambiguous or mismatched results. For each offer, copy the exact final source URL
-returned by web search; never return a search results URL, a provider home page, or
-an invented URL. Treat userId only as opaque request metadata and never use it as a
-search term. Return only the supplied JSON schema with no prose, medical advice,
-recommendations, or additional fields. If an exact medication page explicitly states
-a lowest price but does not expose its pharmacy name in searchable text, return that
-price with pharmacy set to Unknown. Never infer a pharmacy name."""
+_PRICING_INSTRUCTIONS = """You are a precise medication-price extraction agent. Use web search for every request.
+
+Exact Constraints: Medication strength and quantity are absolute constraints, never preferences. Return an offer only when the browsed page explicitly displays both the exact requested strength and the exact requested quantity. Never substitute a nearest strength or normalize a quantity (e.g., do not extrapolate a 90-day price from a 30-day supply). Copy the exact strength and quantity printed beside the price into matched_strength and matched_quantity. If the page does not explicitly expose both, discard the result.
+
+Location Verification: Postal code is a mandatory search constraint. You must verify the price is localized. Return a price only if the browsed page or exact URL explicitly reflects the requested postal code, city, or state. Discard results that lack geographic confirmation or default to a national average.
+
+Price & Pharmacy: Report only a price explicitly visible in a browsed source. Never estimate, calculate, combine, or infer a price. The pharmacy name must be clearly stated in the searchable text; never return an offer with an "Unknown" pharmacy or from an unverified source.
+
+Source URL & Metadata: For each offer, copy the exact final source URL returned by web search. Never return a search results URL, a generic provider home page, or an invented URL. Treat userId strictly as opaque request metadata and never use it as a search term.
+
+Output Formatting: Return exactly and only the supplied JSON schema. Output the raw JSON string directly. Do NOT wrap the JSON in Markdown code blocks (e.g., do not use ```json). Do not include any conversational prose, medical advice, recommendations, or additional fields outside the schema."""
 
 
 def _domain_instructions(
@@ -393,6 +383,8 @@ def _validated_response(
             continue
         if not _host_is_allowed(resolved_url, allowed_domains):
             continue
+        if not _location_matches_request(resolved_url, request.postal_code):
+            continue
         if not _source_matches_request(resolved_url, request):
             continue
         provider = candidate.provider.strip()
@@ -491,6 +483,21 @@ def _source_matches_request(url: str, request: PricingSearchRequest) -> bool:
         if len(token) >= 4
     ]
     return not drug_tokens or any(token in path_tokens for token in drug_tokens)
+
+
+def _location_matches_request(url: str, postal_code: str) -> bool:
+    """Reject a source URL when it explicitly identifies another location."""
+    query = parse_qs(urlparse(url).query)
+    location_keys = ("location", "zip", "zipcode", "postal_code", "postalCode")
+    observed_locations = [
+        value.strip()
+        for key in location_keys
+        for value in query.get(key, [])
+        if value.strip()
+    ]
+    return not observed_locations or all(
+        location == postal_code for location in observed_locations
+    )
 
 
 def _host_is_allowed(url: str, allowed_domains: tuple[str, ...]) -> bool:

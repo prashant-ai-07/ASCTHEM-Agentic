@@ -93,3 +93,18 @@ def test_old_standalone_pricing_endpoint_is_removed() -> None:
         )
 
     assert response.status_code == 404
+
+
+def test_orchestrator_rejects_indian_postal_code() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/orchestrator/run",
+            json={
+                "drugName": "soaanz",
+                "strength": "40 mg",
+                "postalCode": "110001",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "postalCode"]

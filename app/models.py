@@ -51,6 +51,7 @@ class OrchestratorRequest(ApiModel):
     )
     postal_code: str = Field(
         min_length=1,
+        pattern=r"^\d{5}(?:-\d{4})?$",
         validation_alias=AliasChoices("postalCode", "postalcode", "postal_code"),
         serialization_alias="postalCode",
     )

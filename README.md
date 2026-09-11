@@ -88,8 +88,9 @@ The public agent identifier remains `pharmacovigilance` for API compatibility.
 The request rejects unknown fields. At least one of `ndc`, `gtin`, or `drugName` is
 required. `UserId`/`userId` and `postalcode`/`postalCode` are accepted; canonical
 serialization uses `userId` and `postalCode`. Use `null` for unavailable optional
-values. For compatibility, the literal Swagger placeholder `"string"` is discarded
-instead of being sent to web search.
+values. `postalCode` is U.S.-only and must be a five-digit ZIP code or ZIP+4. For
+compatibility, the literal Swagger placeholder `"string"` is discarded instead of
+being sent to web search.
 
 ```json
 {

@@ -308,3 +308,44 @@ async def test_rejects_offer_for_a_different_strength() -> None:
     assert result.response.offers == []
     assert result.response.sources == []
     assert len(provider._client.responses.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_rejects_offer_from_an_explicitly_different_location() -> None:
+    url = "https://www.goodrx.com/soaanz"
+    response = FakeResponse(
+        output_text=json.dumps(
+            {
+                "offers": [
+                    {
+                        "provider": "GoodRx",
+                        "pharmacy": "Walmart",
+                        "price": 103.56,
+                        "currency": "USD",
+                        "savings_type": "coupon",
+                        "coupon_code": None,
+                        "source_url": url,
+                        "matched_strength": "40 mg",
+                    }
+                ]
+            }
+        ),
+        sources=[{"url": f"{url}?location=90210", "title": "Soaanz Prices"}],
+    )
+    provider = OpenAIWebPricingProvider(
+        api_key=None,
+        model="test-model",
+        allowed_domains=("goodrx.com",),
+        client=FakeOpenAIClient(response),
+    )
+
+    result = await provider.search(
+        PricingSearchRequest(
+            drug_name="Soaanz",
+            strength="40 mg",
+            postal_code="22182",
+        )
+    )
+
+    assert result.response.offers == []
+    assert result.response.sources == []

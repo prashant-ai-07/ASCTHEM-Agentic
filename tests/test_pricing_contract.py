@@ -63,6 +63,27 @@ def test_requires_drug_name_strength_and_postal_code_for_pricing(
         PricingSearchRequest.model_validate(payload)
 
 
+@pytest.mark.parametrize("postal_code", ["110001", "560001", "ABCDE", "1234"])
+def test_rejects_non_us_postal_codes(postal_code: str) -> None:
+    with pytest.raises(ValidationError):
+        PricingSearchRequest(
+            drug_name="Soaanz",
+            strength="40 mg",
+            postal_code=postal_code,
+        )
+
+
+@pytest.mark.parametrize("postal_code", ["10001", "10001-1234"])
+def test_accepts_us_zip_codes(postal_code: str) -> None:
+    request = PricingSearchRequest(
+        drug_name="Soaanz",
+        strength="40 mg",
+        postal_code=postal_code,
+    )
+
+    assert request.postal_code == postal_code
+
+
 def test_discards_swagger_string_placeholders() -> None:
     request = PricingSearchRequest.model_validate(
         {
